@@ -1,0 +1,134 @@
+/*Create Custom Fields, Select a Document from Custom Field and set all another custome fields after save. */
+//For log file
+var logFile = new java.io.FileWriter("./logs/main/featurePostSave.log", false);
+var logWriter = new java.io.BufferedWriter(logFile);
+//getting Project
+var projectId = workItem.getProjectId();
+var project = trackerService.getTrackerProject(projectId);
+try {
+ 
+    if (workItem.getCustomField("sourceDocument") != null) {
+        //Getting Document
+        var sourceDoc = workItem.getCustomField("sourceDocument").getId();
+        space = sourceDoc.split("");
+        space.splice(space.indexOf("/") - 1, 1);
+        space.splice(space.indexOf("/") + 1, 1)
+        space = space.join("");
+ 
+        //getting location for selected ID
+        var locationSpace = com.polarion.subterra.base.location.Location
+        var location = locationSpace.getLocation(space);
+ 
+        //Getting Module
+        var moduleObject = trackerService.getModuleManager().getModule(project, location);
+ 
+        //Getting revisions of document
+        var history = trackerService.getDataService().getObjectHistory(trackerService.getDataService().getInstance(moduleObject.getObjectId()));
+        const arr = [];
+        for (let i = 0; i < history.length; i++) {
+            var rev = history[i].getRevision().toString();
+            arr.push(rev);
+        }
+ 
+        //Setting Custom Values
+        workItem.setCustomField('sourceRevision', arr.toString());
+ 
+        //getting particular revision
+        var selectedRevision = workItem.getCustomField("revision");
+ 
+        if (workItem.getCustomField("revision") != null) {
+ 
+            //Getting Module Object As per selected Revision
+            var revLocation = locationSpace.getLocation(moduleObject.getModuleLocation().getLocationPath()).setRevision(selectedRevision);
+            var revModule = trackerService.getModuleManager().getModule(project, revLocation);
+ 
+            //Setting Custom Fields As per revision
+            if (arr.length != 0) {
+                if (arr.includes(selectedRevision.toString()) == true) {
+ 
+                    workItem.setCustomField('sourceName', revModule.getTitleOrName());
+                    workItem.setCustomField('sourceId', revModule.getId());
+                    workItem.setCustomField("sourceStatus", revModule.getStatus().getName());
+ 
+                    if (revModule.getCustomField("owner") != null) {
+                        workItem.setCustomField('sourceOwner', revModule.getCustomField("owner").getName());
+ 
+                    }
+                    else {
+                        workItem.setCustomField('sourceOwner', "NONE");
+                    }
+ 
+                    workItem.setCustomField('sourceCreationDate', revModule.getCreated().toString());
+ 
+                    workItem.setCustomField('sourceType', revModule.getType().getName());
+                    //setting Baseline
+                    var sqlquery = "select baseline.c_uri from baseline inner join module on baseline.fk_uri_baseobject=module.c_uri inner join project on module.fk_uri_project=project.c_uri where true  and project.c_id='"
+                        + projectId + "' and  module.c_id='" + revModule.getId() + "'";
+ 
+                    var baselineObject = trackerService.getDataService().sqlSearch(sqlquery);
+                    if (baselineObject == null) {
+                        workItem.setCustomField('sourceBaseline', "Baseline not created");
+                    }
+                    else {
+                        for (let i = 0; i < baselineObject.length; ++i) {
+                            var baselineName = baselineObject[i].getName();
+                            workItem.setCustomField('sourceBaseline', baselineName);
+ 
+                        }
+                    }
+                    workItem.save();
+                }
+            }
+        }
+        //setting Custom fields as per document
+        else {
+            workItem.setCustomField('sourceName', moduleObject.getTitleOrName());
+            workItem.setCustomField('sourceId', moduleObject.getId());
+            workItem.setCustomField("sourceStatus", moduleObject.getStatus().getName());
+            if (moduleObject.getCustomField("owner") != null) {
+                workItem.setCustomField('sourceOwner', moduleObject.getCustomField("owner").getName());
+            }
+            else {
+                workItem.setCustomField('sourceOwner', "NONE");
+            }
+ 
+            workItem.setCustomField('sourceCreationDate', moduleObject.getCreated().toString());
+            workItem.setCustomField('sourceType', moduleObject.getType().getName());
+            //setting Baseline
+            //Baseline
+            var sqlquery = "select baseline.c_uri from baseline inner join module on baseline.fk_uri_baseobject=module.c_uri inner join project on module.fk_uri_project=project.c_uri where true  and project.c_id='"
+                + projectId + "' and  module.c_id='" + moduleObject.getId() + "'";
+ 
+            var baselineObject = trackerService.getDataService().sqlSearch(sqlquery);
+            if (baselineObject == null) {
+                workItem.setCustomField('sourceBaseline', "Baseline not created");
+            }
+            else {
+                for (let i = 0; i < baselineObject.length; ++i) {
+                    var baselineName = baselineObject[i].getName();
+                    workItem.setCustomField('sourceBaseline', baselineName);
+ 
+                }
+            }
+            workItem.save();
+        }
+    }
+    //for No selection of Document
+    else {
+ 
+        workItem.setCustomField('sourceRevision', "");
+        workItem.setCustomField('sourceName', " ");
+        workItem.setCustomField('sourceId', "");
+        workItem.setCustomField("sourceStatus", "");
+        workItem.setCustomField('sourceOwner', "");
+        workItem.setCustomField('sourceCreationDate', "");
+        workItem.setCustomField('sourceBaseline', "");
+        workItem.setCustomField('sourceType', "");
+        workItem.save();
+    }
+ 
+}
+catch (e) {
+    logWriter.write("\nRuntime Exception: " + e + "\n")
+}
+logWriter.flush();
